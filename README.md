@@ -39,10 +39,6 @@ FIMon is a lightweight file integrity monitoring system designed to detect chang
      ```bash
      make release
      ```
-   - For a debug build (with debugging symbols):
-     ```bash
-     make debug
-     ```
    - To build the default release version:
      ```bash
      make
@@ -104,6 +100,9 @@ Run FIMon with the following command:
 - Write basic unit tests for hashing and config. ✅
 - Log signature (hash) to detect tampering. 🔍
 - Better error messages and logging clarity. 📣
+
+## Wiki 📚
+For detailed documentation, including architecture, configuration guides, troubleshooting, and development instructions, visit the [FIMon Wiki](https://github.com/Sepehr0Day/FIMon/wiki).
 
 ## License 📜
 FIMon is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0). See the [LICENSE](LICENSE) file for details.
