@@ -7,6 +7,8 @@
 
 #ifndef TYPES_H
 #define TYPES_H
+#include <sys/types.h>
+#include <time.h>
 
 #define PATH_BUFFER_SIZE 4096
 #define MAX_HASH_LEN 128
