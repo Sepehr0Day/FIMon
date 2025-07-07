@@ -106,8 +106,5 @@ FIMon is licensed under the Creative Commons Attribution-NonCommercial 4.0 Inter
 ## Contributing 🤝
 Contributions are welcome! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines on how to contribute to this project.
 
-## Security 🔐
-For security-related issues, please refer to the [SECURITY.md](SECURITY.md) file for instructions on reporting vulnerabilities.
-
 ## Contact 📬
 For questions or support, open an issue on the [GitHub repository](https://github.com/Sepehr0Day/FIMon). 🌟
