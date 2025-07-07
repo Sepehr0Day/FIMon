@@ -1,10 +1,3 @@
-// Project: FIMon (File Integrity Monitor)
-// GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.0 - Date: 05/07/2025
-// License: CC BY-NC 4.0
-// File: CONTRIBUTING.md
-// Description: Outlines guidelines for contributing to the FIMon project, including how to submit issues, pull requests, and coding standards.
-
 # Contributing to FIMon
 
 Thank you for your interest in contributing to FIMon! This document outlines the guidelines for contributing to the project. Please read through carefully to ensure a smooth collaboration process.
