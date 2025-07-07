@@ -35,10 +35,6 @@ FIMon is a lightweight file integrity monitoring system designed to detect chang
    - For Ubuntu/Debian: `build-essential`, `libssl-dev`, `libcjson-dev`, `libsqlite3-dev`, `libcurl4-openssl-dev`
    - For CentOS/RedHat: `gcc`, `make`, `openssl-devel`, `cjson-devel`, `sqlite-devel`, `libcurl-devel`
 3. Build the project:
-   - For a release build (optimized):
-     ```bash
-     make release
-     ```
    - To build the default release version:
      ```bash
      make
