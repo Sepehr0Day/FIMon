@@ -17,6 +17,21 @@ FIMon is a lightweight, robust file integrity monitoring system designed to dete
 - **Database Backup**: Creates snapshot backups of the SQLite database. 💾
 - **Static Build Support**: Builds a static binary using Docker for portability. 🐳
 
+## Quick Use 🚀
+- Download the pre-built static binary from:  
+  ```bash
+  wget https://github.com/Sepehr0Day/FIMon/releases/download/V1.1.0/fimon-v1.1.0-linux-x86_64-static.zip
+  ```
+- Unzip the downloaded file:
+  ```bash
+  unzip fimon-v1.1.0-linux-x86_64-static.zip
+  ```
+- Run the binary:
+  ```bash
+  ./fimon-v1.1.0-linux-x86_64-static --config config.json
+  ```
+  (Ensure a `config.json` file is present as per the Configuration section below.)
+
 ## Installation 🛠️
 
 ### Prerequisites 📋
@@ -120,7 +135,7 @@ For detailed documentation, including architecture, configuration guides, troubl
 ## Usage 🚀
 Run FIMon with the following command:
 ```bash
-.fimon-v1.1.0-linux-x86_64-static --config config.json [--verbose] [--daemon] [--run-as-service]
+./fimon-v1.1.0-linux-x86_64-static --config config.json [--verbose] [--daemon] [--run-as-service]
 ```
 - `--config <path>`: Path to the configuration file (required). 📄
 - `--verbose`: Enable verbose logging to stdout. 🗣️
