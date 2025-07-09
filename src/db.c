@@ -1,9 +1,10 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.0 - Date: 05/07/2025
+// Version: 1.1.0 - Date: 09/07/2025
 // License: CC BY-NC 4.0
 // File: db.c
-// Description: Manages SQLite database operations for FIMon, including initialization, storing file metadata, comparing and logging changes, and creating database backups.
+// Description: Implements SQLite database operations for FIMon, including initialization, 
+//              storing file metadata, comparing and logging changes, and creating database backups.
 
 #include <sqlite3.h>
 #include <stdio.h>
@@ -15,7 +16,7 @@
 #include "alert.h"
 #include "types.h"
 
-// Initializes the SQLite database, enabling WAL mode and creating the files table if it doesn't exist.
+// Initializes the SQLite database, enables WAL mode, and creates the files table if it doesn't exist.
 int init_database(const char *db_path, int verbose) {
     sqlite3 *db;
     char *err_msg = 0;
@@ -192,7 +193,7 @@ int compare_and_log_changes(const char *db_path, const char *path, const char *n
     return 0;
 }
 
-// Creates a snapshot backup of the SQLite database.
+// Creates a snapshot backup of the SQLite database to the specified backup path.
 int backup_database(const char *db_path, const char *backup_path, int verbose) {
     sqlite3 *db = NULL, *backup_db = NULL;
     int rc = sqlite3_open(db_path, &db);

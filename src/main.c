@@ -1,9 +1,10 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.0 - Date: 05/07/2025
+// Version: 1.1.0 - Date: 09/07/2025
 // License: CC BY-NC 4.0
 // File: main.c
-// Description: Entry point of the FIMon application. Parses command-line arguments, validates configuration and log file permissions, initializes notification system, creates database backup, and starts filesystem monitoring.
+// Description: Main entry point for FIMon. Handles argument parsing, configuration loading, 
+//              file permission checks, environment setup, and launches the monitoring process.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,17 +17,27 @@
 #include "error.h"
 #include "db.h"
 
-// Main function: Parses command-line arguments, performs initial setup, and initiates filesystem monitoring.
+#ifdef __cplusplus
+extern "C" {
+#endif
+void run_as_service(const char *config_path, int daemon_mode);
+#ifdef __cplusplus
+}
+#endif
+
+// Main function for FIMon. Parses arguments, loads config, checks permissions, and starts monitoring.
 int main(int argc, char *argv[]) {
     const char *config_path = NULL;
     int verbose = 0;
     int daemon_mode = 0;
+    int run_as_service_flag = 0;
 
     if (argc == 1) {
-        printf("Usage: %s --config <path> [--verbose] [--daemon]\n", argv[0]);
-        printf("  --config <path>   Path to config file\n");
-        printf("  --verbose         Enable verbose output\n");
-        printf("  --daemon          Run as daemon\n");
+        printf("Usage: %s --config <path> [--verbose] [--daemon] [--run-as-service]\n", argv[0]);
+        printf("  --config <path>       Path to config file\n");
+        printf("  --verbose             Enable verbose output\n");
+        printf("  --daemon              Run as daemon\n");
+        printf("  --run-as-service      Install and start as a service\n");
         return 0;
     }
 
@@ -37,6 +48,8 @@ int main(int argc, char *argv[]) {
             verbose = 1;
         } else if (strcmp(argv[i], "--daemon") == 0) {
             daemon_mode = 1;
+        } else if (strcmp(argv[i], "--run-as-service") == 0) {
+            run_as_service_flag = 1;
         }
     }
 
@@ -56,6 +69,30 @@ int main(int argc, char *argv[]) {
     Config config = {0};
     if (load_config(config_path, &config, verbose) != 0) {
         return 1;
+    }
+
+    // Ensure log, json log, and db files exist with secure permissions
+    FILE *f;
+    if (access(config.log_path, F_OK) != 0) {
+        f = fopen(config.log_path, "a");
+        if (f) {
+            fclose(f);
+            chmod(config.log_path, 0600);
+        }
+    }
+    if (access(config.json_log_path, F_OK) != 0) {
+        f = fopen(config.json_log_path, "a");
+        if (f) {
+            fclose(f);
+            chmod(config.json_log_path, 0600);
+        }
+    }
+    if (access(config.db_path, F_OK) != 0) {
+        f = fopen(config.db_path, "a");
+        if (f) {
+            fclose(f);
+            chmod(config.db_path, 0600);
+        }
     }
 
     if (stat(config.log_path, &st) == 0 && (st.st_mode & 0077) != 0) {
@@ -82,10 +119,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     snprintf(backup_path, sizeof(backup_path), "%s.bak", config.db_path);
-    backup_database(config.db_path, backup_path, verbose);
 
     if (config.notification_config.notification_enabled && config.notification_config.queue_path) {
         setenv("FIM_QUEUE_PATH", config.notification_config.queue_path, 1);
+    }
+    if (run_as_service_flag) {
+        run_as_service(config_path, daemon_mode);
+        return 0;
     }
     monitor_files(&config, verbose, daemon_mode);
 

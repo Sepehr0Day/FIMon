@@ -1,9 +1,9 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.0 - Date: 05/07/2025
+// Version: 1.1.0 - Date: 09/07/2025
 // License: CC BY-NC 4.0
 // File: monitor.h
-// Description: Declares functions for monitoring filesystem changes, including file details retrieval, directory scanning, and notification processing.
+// Description: Declares monitoring functions for FIMon.
 
 #ifndef MONITOR_H
 #define MONITOR_H
@@ -42,7 +42,15 @@ void scan_directory(const char *dir_path, HashType hash_type, const char *db_pat
 // Monitors configured directories for filesystem changes.
 void monitor_files(Config *config, int verbose, int daemon_mode);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Processes queued events and sends notifications if conditions are met.
 void process_notifications(const Config *config);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

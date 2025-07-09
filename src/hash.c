@@ -1,9 +1,9 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.0 - Date: 05/07/2025
+// Version: 1.1.0 - Date: 09/07/2025
 // License: CC BY-NC 4.0
 // File: hash.c
-// Description: Handles cryptographic hash computation for files using OpenSSL. Supports MD5, SHA1, and SHA256 algorithms and provides hash comparison functionality.
+// Description: Implements file hash calculation and comparison using OpenSSL for MD5, SHA1, and SHA256.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -107,7 +107,7 @@ int compute_file_hash(const char *path, char *hash, HashType hash_type, off_t *s
     return 0;
 }
 
-// Compares two hash strings for equality.
+// Compares two hash strings for equality. Returns 0 if equal, nonzero otherwise.
 int compare_hashes(const char *hash1, const char *hash2) {
     return strcmp(hash1, hash2);
 }

@@ -1,9 +1,9 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.0 - Date: 05/07/2025
+// Version: 1.1.0 - Date: 09/07/2025
 // License: CC BY-NC 4.0
 // File: types.h
-// Description: Defines data structures and constants for file monitoring, including hash types, file metadata, and configuration for directories, ignore patterns, and tags.
+// Description: Defines types and structures for FIMon.
 
 #ifndef TYPES_H
 #define TYPES_H

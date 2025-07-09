@@ -1,3 +1,10 @@
+# Project: FIMon (File Integrity Monitor)
+# GitHub: https://github.com/Sepehr0Day/FIMon
+# Version: 1.1.0 - Date: 09/07/2025
+# License: CC BY-NC 4.0
+# File: Dockerfile
+# Description: Docker build for static FIMon binary.
+
 FROM alpine:latest
 
 # Installing build tools, basic dependencies, and python3
@@ -5,7 +12,10 @@ RUN apk update && \
     apk add build-base musl-dev openssl-dev sqlite-dev curl-dev \
     openssl-libs-static sqlite-static curl-static zlib-static \
     libidn2-static nghttp2-static git autoconf automake \
-    libtool pkgconfig make cmake python3
+    libtool pkgconfig make cmake python3 g++
+
+# Installing CA certificates
+RUN apk add --no-cache ca-certificates
 
 # Installing libunistring from source (for libidn2)
 RUN wget https://ftp.gnu.org/gnu/libunistring/libunistring-1.3.tar.gz && \
@@ -61,4 +71,7 @@ RUN mkdir -p obj bin && \
     for f in src/*.c; do \
         gcc -O2 -Wall -Wextra -Iinclude -c "$f" -o "obj/$(basename "$f" .c).o"; \
     done && \
-    gcc -static -O2 obj/*.o -o bin/fimon-v1.0.0-linux-x86_64-static -L/usr/lib -lssl -lcrypto -lsqlite3 -lcurl -lz -lidn2 -lnghttp2 -lbrotlidec -lbrotlienc -lbrotlicommon -lpsl -lzstd -lunistring -lcares
+    for f in src/*.cpp; do \
+        g++ -O2 -Wall -Wextra -Iinclude -c "$f" -o "obj/$(basename "$f" .cpp).o"; \
+    done && \
+    g++ -static -O2 obj/*.o -o bin/fimon-v1.1.0-linux-x86_64-static -L/usr/lib -lssl -lcrypto -lsqlite3 -lcurl -lz -lidn2 -lnghttp2 -lbrotlidec -lbrotlienc -lbrotlicommon -lpsl -lzstd -lunistring -lcares

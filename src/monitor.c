@@ -1,9 +1,10 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.0 - Date: 05/07/2025
+// Version: 1.1.0 - Date: 09/07/2025
 // License: CC BY-NC 4.0
 // File: monitor.c
-// Description: Core monitoring logic for FIMon. Initializes inotify, scans directories, tracks file changes, and logs events for filesystem monitoring.
+// Description: Implements the core logic for monitoring files and directories using inotify, 
+//              tracking file changes, handling ignore patterns and tags, and triggering notifications.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +26,7 @@
 #include "db.h"
 #include "cJSON.h"
 #include "alert.h"
+#include <pthread.h>
 
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUF_LEN (1024 * (EVENT_SIZE + 16))
@@ -36,7 +38,8 @@ static DirectoryConfig *watched_dirs = NULL;
 static int watched_dir_count = 0;
 static int *watch_descriptors = NULL;
 
-// Retrieves detailed metadata (size, modification time, ownership, permissions) for a file.
+// Get file metadata.
+// Retrieves file size, modification time, ownership, permissions, and user/group names for a given path.
 void get_file_details(const char *path, FileInfo *file) {
     struct stat st;
     if (stat(path, &st) == 0) {
@@ -65,7 +68,8 @@ void get_file_details(const char *path, FileInfo *file) {
     }
 }
 
-// Checks if a file or directory should be ignored based on configured patterns.
+// Check if file/dir should be ignored.
+// Returns 1 if the file or directory matches any ignore pattern, otherwise 0.
 int should_ignore(const char *path, const char *name, IgnorePatterns *ignore_patterns) {
     char full_path[PATH_BUFFER_SIZE];
     snprintf(full_path, sizeof(full_path) - 1, "%s/%s", path, name);
@@ -79,7 +83,8 @@ int should_ignore(const char *path, const char *name, IgnorePatterns *ignore_pat
     return 0;
 }
 
-// Determines if a directory is tagged as non-critical.
+// Check if directory is non-critical.
+// Returns 1 if the directory has the "non-critical" tag, otherwise 0.
 int is_non_critical(Tags *tags) {
     for (int i = 0; i < tags->tag_count; i++) {
         if (strcmp(tags->tags[i], "non-critical") == 0) {
@@ -89,7 +94,8 @@ int is_non_critical(Tags *tags) {
     return 0;
 }
 
-// Checks if a directory is in the configured list.
+// Check if directory is configured.
+// Returns the index of the directory in the configuration array, or -1 if not found.
 int is_configured_directory(const char *dir_path, DirectoryConfig *dirs, int dir_count) {
     for (int i = 0; i < dir_count; i++) {
         if (strcmp(dir_path, dirs[i].path) == 0) {
@@ -99,7 +105,8 @@ int is_configured_directory(const char *dir_path, DirectoryConfig *dirs, int dir
     return -1;
 }
 
-// Adds a file to the tracked list, computes its hash, and logs its details.
+// Add file to tracked list and log.
+// Adds a file to the tracked files list, computes its hash, logs details, and updates the database.
 void add_tracked_file(const char *dir_path, const char *file_name, HashType hash_type, const char *db_path, 
                      const char *log_path, const char *json_log_path, int verbose, const char *event_type, 
                      IgnorePatterns *ignore_patterns, Tags *tags) {
@@ -141,14 +148,18 @@ void add_tracked_file(const char *dir_path, const char *file_name, HashType hash
             snprintf(details, sizeof(details), "{\"hash\": \"%s\", \"size\": %ld, \"user\": \"%s\", \"group\": \"%s\", \"permissions\": %o, \"via_ssh\": %s}", 
                      file->hash, (long)file->size, file->user, file->group, file->permissions, file->via_ssh ? "true" : "false");
             log_event(log_path, msg, verbose);
-            log_event_json(json_log_path, event_type, file->path, details, verbose);
+            // Only send notification if event_type is not "InitialHash"
+            if (strcmp(event_type, "InitialHash") != 0) {
+                log_event_json(json_log_path, event_type, file->path, details, verbose);
+            }
         }
         save_file_info(db_path, file->path, file->hash, file->size, file->mtime, verbose);
         tracked_file_count++;
     }
 }
 
-// Adds a directory to the watch list using inotify and logs its creation.
+// Add directory to watch list.
+// Adds a directory to the inotify watch list, logs its creation, and handles temporary directories.
 void add_watched_dir(const char *dir_path, HashType hash_type, int fd, 
                      const char *log_path, const char *json_log_path, int verbose, 
                      IgnorePatterns *ignore_patterns, Tags *tags, int is_temporary) {
@@ -199,6 +210,7 @@ void add_watched_dir(const char *dir_path, HashType hash_type, int fd,
     watched_dir_count++;
 }
 
+// Recursively scan directory.
 // Recursively scans a directory, adds files to tracking, and sets up watches for subdirectories.
 void scan_directory(const char *dir_path, HashType hash_type, const char *db_path, 
                    const char *log_path, const char *json_log_path, int verbose, int fd, 
@@ -245,7 +257,8 @@ void scan_directory(const char *dir_path, HashType hash_type, const char *db_pat
     closedir(dir);
 }
 
-// Main monitoring function: Initializes inotify, scans directories, and processes filesystem events.
+// Main monitoring loop.
+// Initializes inotify, scans configured directories, processes filesystem events, and triggers notifications.
 void monitor_files(Config *config, int verbose, int daemon_mode) {
     if (daemon_mode) {
         pid_t pid = fork();

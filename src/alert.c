@@ -1,9 +1,10 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.0 - Date: 05/07/2025
+// Version: 1.1.0 - Date: 09/07/2025
 // License: CC BY-NC 4.0
 // File: alert.c
-// Description: Manages logging of filesystem events for FIMon, including writing to text and JSON logs, and appending events to a notification queue. Supports verbose output and detailed logging.
+// Description: Handles event logging for FIMon, including plain text and JSON logs, 
+//              and appending events to the notification queue.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +14,8 @@
 #include "alert.h"
 #include "error.h"
 
-// Logs a text-based event with a timestamp to a specified log file and prints to stdout if verbose mode is enabled.
+// Log a text event.
+// Writes a timestamped message to the specified log file and optionally prints to stdout if verbose.
 void log_event(const char *log_path, const char *message, int verbose) {
     FILE *log_file = fopen(log_path, "a");
     time_t now = time(NULL);
@@ -26,11 +28,16 @@ void log_event(const char *log_path, const char *message, int verbose) {
         fclose(log_file);
     }
     if (verbose) {
-        printf("[%s] %s\n", timestamp, message);
+        char logline[4096];
+        snprintf(logline, sizeof(logline), "[%s] %s\n", timestamp, message);
+        // Just print directly, no color
+        fputs(logline, stdout);
+        fflush(stdout);
     }
 }
 
-// Logs a JSON-formatted event to a file, appends to a notification queue, and writes detailed logs to a fixed integrity log file.
+// Log a JSON event.
+// Appends a JSON-formatted event to the log file, updates the notification queue, and logs to integrity log.
 void log_event_json(const char *json_log_path, const char *event_type, const char *path, const char *details, int verbose) {
     cJSON *root = NULL;
     cJSON *events = NULL;
