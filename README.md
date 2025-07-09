@@ -130,7 +130,7 @@ Run FIMon with the following command:
 ### Running as a Systemd Service
 To run FIMon as a systemd service:
 ```bash
-.fimon-v1.1.0-linux-x86_64-static --config config.json --run-as-service
+./fimon-v1.1.0-linux-x86_64-static --config config.json --run-as-service
 ```
 This creates and enables a systemd service file at `/etc/systemd/system/fimon.service` and starts the service.
 
