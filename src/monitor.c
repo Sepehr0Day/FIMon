@@ -1,10 +1,11 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.1.0 - Date: 09/07/2025
+// Version: 1.2.0 - Date: 2025/08/02
 // License: CC BY-NC 4.0
 // File: monitor.c
-// Description: Implements the core logic for monitoring files and directories using inotify, 
+// Description: Implements the core logic for monitoring files and directories using inotify,
 //              tracking file changes, handling ignore patterns and tags, and triggering notifications.
+//              This file manages the inotify event loop, directory scanning, and event processing.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,20 +27,31 @@
 #include "db.h"
 #include "cJSON.h"
 #include "alert.h"
+#include "backup.h"
 #include <pthread.h>
 
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUF_LEN (1024 * (EVENT_SIZE + 16))
 #define MSG_BUFFER_SIZE 16384
+#define MAX_EVENT_NAME_LEN 256
 
+// --- Global/static state for tracking files and directories ---
 static FileInfo *tracked_files = NULL;
 static int tracked_file_count = 0;
 static DirectoryConfig *watched_dirs = NULL;
-static int watched_dir_count = 0;
 static int *watch_descriptors = NULL;
+static int watched_dir_count = 0;
 
-// Get file metadata.
-// Retrieves file size, modification time, ownership, permissions, and user/group names for a given path.
+#ifdef __cplusplus
+extern "C" {
+#endif
+// Processes queued events and sends notifications if conditions are met.
+void process_notifications(const Config *config);
+#ifdef __cplusplus
+}
+#endif
+
+// Retrieves file metadata for a given path, including size, modification time, ownership, and permissions.
 void get_file_details(const char *path, FileInfo *file) {
     struct stat st;
     if (stat(path, &st) == 0) {
@@ -68,7 +80,7 @@ void get_file_details(const char *path, FileInfo *file) {
     }
 }
 
-// Check if file/dir should be ignored.
+// Determines if a file or directory should be ignored based on ignore patterns.
 // Returns 1 if the file or directory matches any ignore pattern, otherwise 0.
 int should_ignore(const char *path, const char *name, IgnorePatterns *ignore_patterns) {
     char full_path[PATH_BUFFER_SIZE];
@@ -83,7 +95,7 @@ int should_ignore(const char *path, const char *name, IgnorePatterns *ignore_pat
     return 0;
 }
 
-// Check if directory is non-critical.
+// Determines if a directory is non-critical based on its tags.
 // Returns 1 if the directory has the "non-critical" tag, otherwise 0.
 int is_non_critical(Tags *tags) {
     for (int i = 0; i < tags->tag_count; i++) {
@@ -94,7 +106,7 @@ int is_non_critical(Tags *tags) {
     return 0;
 }
 
-// Check if directory is configured.
+// Checks if a directory is configured for monitoring.
 // Returns the index of the directory in the configuration array, or -1 if not found.
 int is_configured_directory(const char *dir_path, DirectoryConfig *dirs, int dir_count) {
     for (int i = 0; i < dir_count; i++) {
@@ -105,8 +117,8 @@ int is_configured_directory(const char *dir_path, DirectoryConfig *dirs, int dir
     return -1;
 }
 
-// Add file to tracked list and log.
 // Adds a file to the tracked files list, computes its hash, logs details, and updates the database.
+// The function also handles ignore patterns and tags associated with the file.
 void add_tracked_file(const char *dir_path, const char *file_name, HashType hash_type, const char *db_path, 
                      const char *log_path, const char *json_log_path, int verbose, const char *event_type, 
                      IgnorePatterns *ignore_patterns, Tags *tags) {
@@ -114,20 +126,27 @@ void add_tracked_file(const char *dir_path, const char *file_name, HashType hash
         if (verbose) {
             char msg[MSG_BUFFER_SIZE];
             snprintf(msg, sizeof(msg), "Ignoring file: %s/%s", dir_path, file_name);
+            msg[sizeof(msg)-1] = '\0';
             log_event(log_path, msg, verbose);
         }
         return;
     }
 
     char full_path[PATH_BUFFER_SIZE];
-    if (strlen(dir_path) + strlen(file_name) + 1 >= PATH_BUFFER_SIZE - 1) {
+    size_t dir_len = strlen(dir_path);
+    size_t file_len = strlen(file_name);
+    if (dir_len + file_len + 1 >= PATH_BUFFER_SIZE) {
         char msg[MSG_BUFFER_SIZE];
         snprintf(msg, sizeof(msg), "Path too long for %s/%s", dir_path, file_name);
+        msg[sizeof(msg)-1] = '\0';
         handle_error(msg, verbose);
         return;
     }
-    snprintf(full_path, sizeof(full_path) - 1, "%s/%s", dir_path, file_name);
-    full_path[sizeof(full_path) - 1] = '\0';
+    // Use memcpy and manual concatenation to avoid snprintf truncation warning
+    memcpy(full_path, dir_path, dir_len);
+    full_path[dir_len] = '/';
+    memcpy(full_path + dir_len + 1, file_name, file_len);
+    full_path[dir_len + 1 + file_len] = '\0';
     
     tracked_files = realloc(tracked_files, (tracked_file_count + 1) * sizeof(FileInfo));
     if (!tracked_files) {
@@ -158,8 +177,8 @@ void add_tracked_file(const char *dir_path, const char *file_name, HashType hash
     }
 }
 
-// Add directory to watch list.
 // Adds a directory to the inotify watch list, logs its creation, and handles temporary directories.
+// The function also manages ignore patterns and tags associated with the directory.
 void add_watched_dir(const char *dir_path, HashType hash_type, int fd, 
                      const char *log_path, const char *json_log_path, int verbose, 
                      IgnorePatterns *ignore_patterns, Tags *tags, int is_temporary) {
@@ -167,6 +186,7 @@ void add_watched_dir(const char *dir_path, HashType hash_type, int fd,
         if (verbose) {
             char msg[MSG_BUFFER_SIZE];
             snprintf(msg, sizeof(msg), "Ignoring directory: %s", dir_path);
+            msg[sizeof(msg)-1] = '\0';
             log_event(log_path, msg, verbose);
         }
         return;
@@ -210,8 +230,8 @@ void add_watched_dir(const char *dir_path, HashType hash_type, int fd,
     watched_dir_count++;
 }
 
-// Recursively scan directory.
 // Recursively scans a directory, adds files to tracking, and sets up watches for subdirectories.
+// The function also handles ignore patterns and tags for the directory and its contents.
 void scan_directory(const char *dir_path, HashType hash_type, const char *db_path, 
                    const char *log_path, const char *json_log_path, int verbose, int fd, 
                    IgnorePatterns *ignore_patterns, Tags *tags, DirectoryConfig *dirs, int dir_count) {
@@ -243,14 +263,19 @@ void scan_directory(const char *dir_path, HashType hash_type, const char *db_pat
             add_tracked_file(dir_path, entry->d_name, hash_type, db_path, log_path, json_log_path, verbose, "InitialHash", ignore_patterns, tags);
         } else if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
             char subdir_path[PATH_BUFFER_SIZE];
-            if (strlen(dir_path) + strlen(entry->d_name) + 1 >= PATH_BUFFER_SIZE - 1) {
+            size_t dir_len = strlen(dir_path);
+            size_t name_len = strlen(entry->d_name);
+            if (dir_len + name_len + 1 >= PATH_BUFFER_SIZE) {
                 char msg[MSG_BUFFER_SIZE];
                 snprintf(msg, sizeof(msg), "Subdirectory path too long for %s/%s", dir_path, entry->d_name);
+                msg[sizeof(msg)-1] = '\0';
                 handle_error(msg, verbose);
                 continue;
             }
-            snprintf(subdir_path, sizeof(subdir_path) - 1, "%s/%s", dir_path, entry->d_name);
-            subdir_path[sizeof(subdir_path) - 1] = '\0';
+            memcpy(subdir_path, dir_path, dir_len);
+            subdir_path[dir_len] = '/';
+            memcpy(subdir_path + dir_len + 1, entry->d_name, name_len);
+            subdir_path[dir_len + 1 + name_len] = '\0';
             scan_directory(subdir_path, hash_type, db_path, log_path, json_log_path, verbose, fd, ignore_patterns, tags, dirs, dir_count);
         }
     }
@@ -258,7 +283,7 @@ void scan_directory(const char *dir_path, HashType hash_type, const char *db_pat
 }
 
 // Main monitoring loop.
-// Initializes inotify, scans configured directories, processes filesystem events, and triggers notifications.
+// Initializes inotify, scans configured directories, processes filesystem events, and triggers notifications and backups.
 void monitor_files(Config *config, int verbose, int daemon_mode) {
     if (daemon_mode) {
         pid_t pid = fork();
@@ -312,6 +337,8 @@ void monitor_files(Config *config, int verbose, int daemon_mode) {
     }
 
     time_t last_notification_check = time(NULL);
+    time_t last_backup = 0; // <-- add this line
+
     char buffer[EVENT_BUF_LEN];
     while (1) {
         int length = read(fd, buffer, EVENT_BUF_LEN);
@@ -322,6 +349,15 @@ void monitor_files(Config *config, int verbose, int daemon_mode) {
                     process_notifications(config);
                     last_notification_check = current_time;
                 }
+                // --- Backup scheduling inside monitoring loop ---
+                if (config->backup_config.backup_enabled && config->backup_config.backup_interval_sec > 0) {
+                    time_t now = time(NULL);
+                    if (now - last_backup >= config->backup_config.backup_interval_sec) {
+                        perform_backup(config, verbose);
+                        last_backup = now;
+                    }
+                }
+                // Sleep a bit to avoid busy loop
                 usleep(100000);
                 continue;
             }
@@ -343,14 +379,23 @@ void monitor_files(Config *config, int verbose, int daemon_mode) {
                 if (event->wd == watch_descriptors[j]) {
                     if (event->len) {
                         char full_path[PATH_BUFFER_SIZE];
-                        if (strlen(watched_dirs[j].path) + strlen(event->name) + 1 >= PATH_BUFFER_SIZE - 1) {
+                        size_t base_len = strlen(watched_dirs[j].path);
+                        size_t name_len = strlen(event->name);
+                        // Instead of using event->name directly, use a truncated safe_event_name
+                        char safe_event_name[MAX_EVENT_NAME_LEN];
+                        strncpy(safe_event_name, event->name, MAX_EVENT_NAME_LEN - 1);
+                        safe_event_name[MAX_EVENT_NAME_LEN - 1] = '\0';
+                        if (base_len + strlen(safe_event_name) + 1 >= PATH_BUFFER_SIZE) {
                             char msg[MSG_BUFFER_SIZE];
-                            snprintf(msg, sizeof(msg), "Path too long for %s/%s", watched_dirs[j].path, event->name);
+                            snprintf(msg, sizeof(msg), "Path too long for %s/%s", watched_dirs[j].path, safe_event_name);
+                            msg[sizeof(msg)-1] = '\0';
                             handle_error(msg, verbose);
                             continue;
                         }
-                        snprintf(full_path, sizeof(full_path) - 1, "%s/%s", watched_dirs[j].path, event->name);
-                        full_path[sizeof(full_path) - 1] = '\0';
+                        memcpy(full_path, watched_dirs[j].path, base_len);
+                        full_path[base_len] = '/';
+                        memcpy(full_path + base_len + 1, event->name, name_len);
+                        full_path[base_len + 1 + name_len] = '\0';
 
                         if (event->mask & IN_MOVED_FROM) {
                             static char moved_from_path[PATH_BUFFER_SIZE] = {0};
@@ -401,6 +446,7 @@ void monitor_files(Config *config, int verbose, int daemon_mode) {
                                     } else if (verbose) {
                                         char msg[MSG_BUFFER_SIZE];
                                         snprintf(msg, sizeof(msg), "Ignoring file: %s/%s", watched_dirs[j].path, event->name);
+                                        msg[sizeof(msg)-1] = '\0';
                                         log_event(config->log_path, msg, verbose);
                                     }
                                 } else if (S_ISDIR(st.st_mode)) {
@@ -437,12 +483,15 @@ void monitor_files(Config *config, int verbose, int daemon_mode) {
                                             if (!is_non_critical(&watched_dirs[j].tags)) {
                                                 char msg[MSG_BUFFER_SIZE], details[1024];
                                                 int log_event_flag = 0;
+                                                char safe_event_name[MAX_EVENT_NAME_LEN];
+                                                strncpy(safe_event_name, event->name, MAX_EVENT_NAME_LEN - 1);
+                                                safe_event_name[MAX_EVENT_NAME_LEN - 1] = '\0';
                                                 if (compare_hashes(tracked_files[k].hash, new_hash) != 0) {
-                                                    if (strlen(watched_dirs[j].path) + strlen(event->name) + 19 >= MSG_BUFFER_SIZE) {
+                                                    if (strlen(watched_dirs[j].path) + strlen(safe_event_name) + 19 >= MSG_BUFFER_SIZE) {
                                                         handle_error("Message too long for FileChanged event", verbose);
                                                         continue;
                                                     }
-                                                    snprintf(msg, sizeof(msg), "File changed in %s: %s", watched_dirs[j].path, event->name);
+                                                    snprintf(msg, sizeof(msg), "File changed in %s: %s", watched_dirs[j].path, safe_event_name);
                                                     snprintf(details, sizeof(details), "{\"hash\": \"%s\", \"size\": %ld, \"user\": \"%s\", \"group\": \"%s\", \"permissions\": %o, \"via_ssh\": %s}", 
                                                              new_hash, (long)new_size, tracked_files[k].user, tracked_files[k].group, 
                                                              tracked_files[k].permissions, tracked_files[k].via_ssh ? "true" : "false");
@@ -450,11 +499,11 @@ void monitor_files(Config *config, int verbose, int daemon_mode) {
                                                     log_event_json(config->json_log_path, "FileChanged", full_path, details, verbose);
                                                     log_event_flag = 1;
                                                 } else if (tracked_files[k].size != new_size) {
-                                                    if (strlen(watched_dirs[j].path) + strlen(event->name) + 24 >= MSG_BUFFER_SIZE) {
+                                                    if (strlen(watched_dirs[j].path) + strlen(safe_event_name) + 24 >= MSG_BUFFER_SIZE) {
                                                         handle_error("Message too long for FileSizeChanged event", verbose);
                                                         continue;
                                                     }
-                                                    snprintf(msg, sizeof(msg), "File size changed in %s: %s", watched_dirs[j].path, event->name);
+                                                    snprintf(msg, sizeof(msg), "File size changed in %s: %s", watched_dirs[j].path, safe_event_name);
                                                     snprintf(details, sizeof(details), "{\"hash\": \"%s\", \"size\": %ld, \"user\": \"%s\", \"group\": \"%s\", \"permissions\": %o, \"via_ssh\": %s}", 
                                                              new_hash, (long)new_size, tracked_files[k].user, tracked_files[k].group, 
                                                              tracked_files[k].permissions, tracked_files[k].via_ssh ? "true" : "false");
@@ -462,11 +511,11 @@ void monitor_files(Config *config, int verbose, int daemon_mode) {
                                                     log_event_json(config->json_log_path, "FileSizeChanged", full_path, details, verbose);
                                                     log_event_flag = 1;
                                                 } else if (tracked_files[k].mtime != new_mtime) {
-                                                    if (strlen(watched_dirs[j].path) + strlen(event->name) + 33 >= MSG_BUFFER_SIZE) {
+                                                    if (strlen(watched_dirs[j].path) + strlen(safe_event_name) + 33 >= MSG_BUFFER_SIZE) {
                                                         handle_error("Message too long for FileMtimeChanged event", verbose);
                                                         continue;
                                                     }
-                                                    snprintf(msg, sizeof(msg), "File modified time changed in %s: %s", watched_dirs[j].path, event->name);
+                                                    snprintf(msg, sizeof(msg), "File modified time changed in %s: %s", watched_dirs[j].path, safe_event_name);
                                                     snprintf(details, sizeof(details), "{\"hash\": \"%s\", \"size\": %ld, \"user\": \"%s\", \"group\": \"%s\", \"permissions\": %o, \"via_ssh\": %s}", 
                                                              new_hash, (long)new_size, tracked_files[k].user, tracked_files[k].group, 
                                                              tracked_files[k].permissions, tracked_files[k].via_ssh ? "true" : "false");
@@ -486,6 +535,7 @@ void monitor_files(Config *config, int verbose, int daemon_mode) {
                                     } else if (verbose) {
                                         char msg[MSG_BUFFER_SIZE];
                                         snprintf(msg, sizeof(msg), "Ignoring file: %s/%s", watched_dirs[j].path, event->name);
+                                        msg[sizeof(msg)-1] = '\0';
                                         log_event(config->log_path, msg, verbose);
                                     }
                                     break;
@@ -497,11 +547,14 @@ void monitor_files(Config *config, int verbose, int daemon_mode) {
                                     if (!should_ignore(watched_dirs[j].path, event->name, &watched_dirs[j].ignore_patterns) && 
                                         !is_non_critical(&watched_dirs[j].tags)) {
                                         char msg[MSG_BUFFER_SIZE], details[1024];
-                                        if (strlen(watched_dirs[j].path) + strlen(event->name) + 19 >= MSG_BUFFER_SIZE) {
+                                        char safe_event_name[MAX_EVENT_NAME_LEN];
+                                        strncpy(safe_event_name, event->name, MAX_EVENT_NAME_LEN - 1);
+                                        safe_event_name[MAX_EVENT_NAME_LEN - 1] = '\0';
+                                        if (strlen(watched_dirs[j].path) + strlen(safe_event_name) + 19 >= MSG_BUFFER_SIZE) {
                                             handle_error("Message too long for FileDeleted event", verbose);
                                             continue;
                                         }
-                                        snprintf(msg, sizeof(msg), "File deleted in %s: %s", watched_dirs[j].path, event->name);
+                                        snprintf(msg, sizeof(msg), "File deleted in %s: %s", watched_dirs[j].path, safe_event_name);
                                         snprintf(details, sizeof(details), "{\"hash\": \"%s\", \"size\": %ld, \"user\": \"%s\", \"group\": \"%s\", \"permissions\": %o, \"via_ssh\": %s}", 
                                                  tracked_files[k].hash, (long)tracked_files[k].size, tracked_files[k].user, 
                                                  tracked_files[k].group, tracked_files[k].permissions, 

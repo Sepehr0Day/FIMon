@@ -1,10 +1,11 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.1.0 - Date: 09/07/2025
+// Version: 1.2.0 - Date: 2025/08/02
 // License: CC BY-NC 4.0
 // File: db.c
 // Description: Implements SQLite database operations for FIMon, including initialization, 
 //              storing file metadata, comparing and logging changes, and creating database backups.
+//              Ensures persistent storage and tracking of file integrity information.
 
 #include <sqlite3.h>
 #include <stdio.h>

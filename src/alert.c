@@ -1,10 +1,12 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.1.0 - Date: 09/07/2025
+// Version: 1.2.0 - Date: 2025/08/02
 // License: CC BY-NC 4.0
 // File: alert.c
-// Description: Handles event logging for FIMon, including plain text and JSON logs, 
-//              and appending events to the notification queue.
+// Description: Handles event logging for FIMon, including plain text and JSON logs,
+//              log rotation, digital signature for tamper detection, and appending
+//              events to the notification queue. This file ensures all file system
+//              events are logged securely and can be audited for integrity.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,10 +15,57 @@
 #include <cJSON.h>
 #include "alert.h"
 #include "error.h"
+#include <openssl/sha.h>
+#include <sys/stat.h>
 
-// Log a text event.
-// Writes a timestamped message to the specified log file and optionally prints to stdout if verbose.
+#define LOG_ROTATE_SIZE (1024 * 1024) // 1MB
+
+// Rotates the log file if it exceeds the maximum allowed size.
+static void rotate_log_if_needed(const char *log_path) {
+    struct stat st;
+    if (stat(log_path, &st) == 0 && st.st_size > LOG_ROTATE_SIZE) {
+        char rotated[PATH_BUFFER_SIZE];
+        snprintf(rotated, sizeof(rotated), "%s.%ld", log_path, time(NULL));
+        rename(log_path, rotated);
+    }
+}
+
+// Signs the log file with a SHA256 digital signature for tamper detection.
+static void sign_log_file(const char *log_path) {
+    FILE *f = fopen(log_path, "rb");
+    if (!f) return;
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+    SHA256_Init(&sha256);
+    char buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
+        SHA256_Update(&sha256, buf, n);
+    }
+    fclose(f);
+    SHA256_Final(hash, &sha256);
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
+    char sig_path[PATH_BUFFER_SIZE];
+    snprintf(sig_path, sizeof(sig_path), "%s.sig", log_path);
+    FILE *sig = fopen(sig_path, "w");
+    if (sig) {
+        for (int i = 0; i < SHA256_DIGEST_LENGTH; ++i)
+            fprintf(sig, "%02x", hash[i]);
+        fprintf(sig, "\n");
+        fclose(sig);
+    }
+}
+
+// Logs a text-based event with a timestamp to a specified log file and prints to stdout if verbose mode is enabled.
 void log_event(const char *log_path, const char *message, int verbose) {
+    rotate_log_if_needed(log_path);
     FILE *log_file = fopen(log_path, "a");
     time_t now = time(NULL);
     struct tm *tm = localtime(&now);
@@ -26,6 +75,7 @@ void log_event(const char *log_path, const char *message, int verbose) {
     if (log_file) {
         fprintf(log_file, "[%s] %s\n", timestamp, message);
         fclose(log_file);
+        sign_log_file(log_path); // sign after each write
     }
     if (verbose) {
         char logline[4096];
@@ -36,9 +86,9 @@ void log_event(const char *log_path, const char *message, int verbose) {
     }
 }
 
-// Log a JSON event.
-// Appends a JSON-formatted event to the log file, updates the notification queue, and logs to integrity log.
+// Logs a JSON-formatted event to a file, appends to a notification queue, and writes detailed logs to a fixed integrity log file.
 void log_event_json(const char *json_log_path, const char *event_type, const char *path, const char *details, int verbose) {
+    rotate_log_if_needed(json_log_path);
     cJSON *root = NULL;
     cJSON *events = NULL;
 
@@ -106,6 +156,7 @@ void log_event_json(const char *json_log_path, const char *event_type, const cha
         fprintf(log_file, "%s", formatted);
         free(formatted);
         fclose(log_file);
+        sign_log_file(json_log_path); // sign after each write
     } else {
         handle_error("Failed to write JSON log file", verbose);
     }
@@ -175,7 +226,6 @@ void log_event_json(const char *json_log_path, const char *event_type, const cha
             cJSON_AddItemToObject(queue_entry, "details", details_obj2);
         }
         cJSON_AddItemToArray(queue_events, queue_entry);
-
         fseek(queue_file, 0, SEEK_SET);
         char *queue_str = cJSON_Print(queue_root);
         if (queue_str) {

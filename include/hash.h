@@ -1,9 +1,9 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.1.0 - Date: 09/07/2025
+// Version: 1.2.0 - Date: 2025/08/02
 // License: CC BY-NC 4.0
 // File: hash.h
-// Description: Declares hash calculation and comparison functions.
+// Description: Declares hash calculation and comparison functions for file integrity checking.
 
 #ifndef HASH_H
 #define HASH_H

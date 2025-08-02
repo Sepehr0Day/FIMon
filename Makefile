@@ -1,12 +1,12 @@
 # Project: FIMon (File Integrity Monitor)
 # GitHub: https://github.com/Sepehr0Day/FIMon
-# Version: 1.1.0 - Date: 09/07/2025
+# Version: 1.2.0 - Date: 09/07/2025
 # License: CC BY-NC 4.0
 # File: Makefile
 # Description: Build system for FIMon.
 
 # === Project Configuration ===
-VERSION = 1.1.0
+VERSION = 1.2.0
 TARGET = FIMon
 CC = gcc
 CXX = g++

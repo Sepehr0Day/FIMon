@@ -1,9 +1,10 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.1.0 - Date: 09/07/2025
+// Version: 1.2.0 - Date: 2025/08/02
 // License: CC BY-NC 4.0
 // File: error.c
 // Description: Handles error reporting for FIMon, printing messages to stderr if verbose is enabled.
+//              Provides a centralized error handler for consistent error output.
 
 #include <stdio.h>
 #include <stdlib.h>

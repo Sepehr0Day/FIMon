@@ -1,6 +1,6 @@
 # Project: FIMon (File Integrity Monitor)
 # GitHub: https://github.com/Sepehr0Day/FIMon
-# Version: 1.1.0 - Date: 09/07/2025
+# Version: 1.2.0 - Date: 2025/08/02
 # License: CC BY-NC 4.0
 # File: Dockerfile
 # Description: Docker build for static FIMon binary.
@@ -74,4 +74,4 @@ RUN mkdir -p obj bin && \
     for f in src/*.cpp; do \
         g++ -O2 -Wall -Wextra -Iinclude -c "$f" -o "obj/$(basename "$f" .cpp).o"; \
     done && \
-    g++ -static -O2 obj/*.o -o bin/fimon-v1.1.0-linux-x86_64-static -L/usr/lib -lssl -lcrypto -lsqlite3 -lcurl -lz -lidn2 -lnghttp2 -lbrotlidec -lbrotlienc -lbrotlicommon -lpsl -lzstd -lunistring -lcares
+    g++ -static -O2 obj/*.o -o bin/fimon-v1.2.0-linux-x86_64-static -L/usr/lib -lssl -lcrypto -lsqlite3 -lcurl -lz -lidn2 -lnghttp2 -lbrotlidec -lbrotlienc -lbrotlicommon -lpsl -lzstd -lunistring -lcares

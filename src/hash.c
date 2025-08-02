@@ -1,9 +1,10 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.1.0 - Date: 09/07/2025
+// Version: 1.2.0 - Date: 2025/08/02
 // License: CC BY-NC 4.0
 // File: hash.c
 // Description: Implements file hash calculation and comparison using OpenSSL for MD5, SHA1, and SHA256.
+//              Provides cryptographic hash functions for file integrity checking and change detection.
 
 #include <stdio.h>
 #include <stdlib.h>

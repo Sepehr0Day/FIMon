@@ -1,9 +1,9 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.1.0 - Date: 09/07/2025
+// Version: 1.2.0 - Date: 2025/08/02
 // License: CC BY-NC 4.0
 // File: error.h
-// Description: Declares error handling function.
+// Description: Declares error handling function for FIMon.
 
 #ifndef ERROR_H
 #define ERROR_H

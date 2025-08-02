@@ -1,9 +1,9 @@
 // Project: FIMon (File Integrity Monitor)
 // GitHub: https://github.com/Sepehr0Day/FIMon
-// Version: 1.1.0 - Date: 09/07/2025
+// Version: 1.2.0 - Date: 2025/08/02
 // License: CC BY-NC 4.0
 // File: alert.h
-// Description: Declares event logging functions for FIMon.
+// Description: Declares event logging functions for FIMon, including text and JSON logging with integrity features.
 
 #ifndef ALERT_H
 #define ALERT_H
