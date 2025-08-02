@@ -166,7 +166,7 @@ Add a `backup` section to your config:
 - `enabled`: Enable or disable scheduled backup.
 - `interval_sec`: How often to perform backup (in seconds).
 - `paths`: List of files or folders to backup (zipped together).
-- `method`: `"email"` or `"telegram"` (delivery method).
+- `method`: `"telegram"` (delivery method).
 - `recipients`: List of email addresses or Telegram chat IDs.
 
 Backups are zipped and sent as attachments via the chosen method.
@@ -203,4 +203,5 @@ Contributions are welcome! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) fi
 For security-related issues, please refer to the [SECURITY.md](SECURITY.md) file for instructions on reporting vulnerabilities.
 
 ## Contact 📬
+
 For questions or support, open an issue on the [GitHub repository](https://github.com/Sepehr0Day/FIMon). 🌟
